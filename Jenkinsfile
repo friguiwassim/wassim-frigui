@@ -11,10 +11,10 @@ pipeline {
     }
 
     stages {
-        stage('Nettoyage Workspace') {
+        stage('Clean Workspace') {
             steps {
                 cleanWs()
-                echo '✅ Workspace nettoyé'
+                echo 'Workspace cleaned'
             }
         }
 
@@ -22,43 +22,41 @@ pipeline {
             steps {
                 git branch: 'main', 
                     url: 'https://github.com/friguiwassim/wassim-frigui.git'
-                echo '✅ Code récupéré depuis Git'
+                echo 'Code retrieved from Git'
             }
         }
 
-        stage('Nettoyage et Construction') {
+        stage('Clean and Build') {
             steps {
                 sh '''
-                    echo "=== Fichiers présents ==="
+                    echo "=== Files in project ==="
                     ls -la
-                    echo "=== Contenu Dockerfile ==="
-                    cat Dockerfile
-                    echo "✅ Projet prêt pour le build"
+                    echo "Project ready for build"
                 '''
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Docker Build') {
             steps {
                 sh '''
-                    echo "Construction de l'image Docker..."
+                    echo "Building Docker image..."
                     docker build -t ${DOCKER_IMAGE}:v${BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
-                    echo "✅ Image Docker construite: ${DOCKER_IMAGE}:v${BUILD_NUMBER}"
+                    echo "Docker image built: ${DOCKER_IMAGE}:v${BUILD_NUMBER}"
                 '''
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Docker Push') {
             steps {
                 sh '''
-                    echo "Connexion à Docker Hub..."
+                    echo "Logging to Docker Hub..."
                     echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin
                     
-                    echo "Publication sur Docker Hub..."
+                    echo "Pushing to Docker Hub..."
                     docker push ${DOCKER_IMAGE}:v${BUILD_NUMBER}
                     docker push ${DOCKER_IMAGE}:latest
                     
-                    echo "✅ Images publiées sur Docker Hub"
+                    echo "Images pushed to Docker Hub"
                 '''
             }
         }
@@ -66,20 +64,20 @@ pipeline {
 
     post {
         success {
-            echo '� PIPELINE R��USSIE !'
+            echo 'PIPELINE SUCCESS!'
             sh '''
-                echo "========================================="
-                echo "         PIPELINE CI/CD COMPLÉÈTE         "
-                echo "========================================="
+                echo "========================================"
+                echo "        CI/CD PIPELINE COMPLETE         "
+                echo "========================================"
                 echo "Build: #${BUILD_NUMBER}"
                 echo "Image: ${DOCKER_IMAGE}:v${BUILD_NUMBER}"
                 echo "Docker Hub: https://hub.docker.com/r/wassimfrigui/ci-cd-demo"
                 echo "Test: docker run -p 8080:80 ${DOCKER_IMAGE}:latest"
-                echo "========================================="
+                echo "========================================"
             '''
         }
         failure {
-            echo '❌ Pipeline échouée - Vérifiez les logs'
+            echo 'Pipeline failed - Check logs'
         }
     }
 }
