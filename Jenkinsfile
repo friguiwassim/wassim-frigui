@@ -2,8 +2,7 @@ pipeline {
     agent any
     
     triggers {
-        // Poll SCM toutes les minutes
-        pollSCM('* * * * *')
+        pollSCM('*/2 * * * *')  // Toutes les 2 minutes
     }
     
     environment {
@@ -28,11 +27,30 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
+                    // CORRECTION ICI : Séparer les tags correctement
                     def imageTag = "${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
                     def latestTag = "${env.DOCKER_IMAGE_NAME}:latest"
                     
-                    // Build avec tags
-                    dockerImage = docker.build("${imageTag} --tag ${latestTag}")
+                    sh """
+                        echo "Building Docker image..."
+                        docker build -t ${imageTag} -t ${latestTag} .
+                        echo "Images built: ${imageTag} and ${latestTag}"
+                    """
+                }
+            }
+        }
+        
+        stage('Login to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: env.DOCKERHUB_CREDENTIALS,
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "Logging in to Docker Hub..."
+                        echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                    '''
                 }
             }
         }
@@ -40,20 +58,44 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    docker.withRegistry("https://${env.DOCKER_REGISTRY}", env.DOCKERHUB_CREDENTIALS) {
-                        dockerImage.push()
-                        dockerImage.push('latest')
-                    }
+                    def imageTag = "${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
+                    def latestTag = "${env.DOCKER_IMAGE_NAME}:latest"
+                    
+                    sh """
+                        echo "Pushing images to Docker Hub..."
+                        docker push ${imageTag}
+                        docker push ${latestTag}
+                        echo "Images pushed successfully!"
+                    """
                 }
             }
         }
         
         stage('Notification') {
             steps {
-                echo "✅ Pipeline réussie !"
-                echo "Image: ${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
-                echo "Docker Hub: https://hub.docker.com/r/wassimfrigui/wassim-frigui-app"
+                script {
+                    def imageTag = "${env.DOCKER_IMAGE_NAME}:${env.BUILD_NUMBER}"
+                    sh """
+                        echo "✅ Pipeline CI/CD réussie !"
+                        echo "================================="
+                        echo "Build ID: ${env.BUILD_NUMBER}"
+                        echo "Date: ${env.BUILD_DATE}"
+                        echo "Image Docker: ${imageTag}"
+                        echo "Docker Hub: https://hub.docker.com/r/wassimfrigui/wassim-frigui-app"
+                        echo "Pour tester: docker run -p 5000:5000 ${imageTag}"
+                        echo "================================="
+                    """
+                }
             }
+        }
+    }
+    
+    post {
+        success {
+            echo '� Pipeline r��ussie ! L image est sur Docker Hub.'
+        }
+        failure {
+            echo 'é❌ Pipeline échouée. Vérifiez les logs.'
         }
     }
 }
