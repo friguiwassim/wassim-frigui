@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pipeline CI/CD - Wassim Frigui</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .success { color: green; }
+        .info { background: #f0f0f0; padding: 20px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="success">✅ Pipeline CI/CD DevOps</h1>
+        <div class="info">
+            <h2>Informations du Build</h2>
+            <p><strong>Étudiant:</strong> Wassim Frigui</p>
+            <p><strong>Build ID:</strong> ${BUILD_NUMBER}</p>
+            <p><strong>Date:</strong> ${BUILD_TIMESTAMP}</p>
+            <p><strong>Image Docker:</strong> wassimfrigui/ci-cd-demo:${BUILD_NUMBER}</p>
+        </div>
+        <h3>Pipeline Jenkins:</h3>
+        <ul>
+            <li>Détection automatique des commits Git</li>
+            <li>Build automatique Jenkins</li>
+            <li>Construction image Docker</li>
+            <li>Publication Docker Hub</li>
+        </ul>
+    </div>
+</body>
+</html>
