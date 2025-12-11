@@ -1,80 +1,65 @@
 pipeline {
     agent any
-
-    triggers {
-        pollSCM('*/2 * * * *')
-    }
-
-    environment {
-        // Docker
-        DOCKER_IMAGE = 'wassimfrigui/ci-cd-demo'
-        DOCKER_CREDS = credentials('dockerhub-wassim')
-        
-        // SonarQube
-        SONAR_HOST_URL = 'http://192.168.33.10:9000'
-        SONAR_TOKEN = credentials('squ_de894476d94878b23fd052008524570fd130d7c4')
-        
-        // GitHub
-        GITHUB_TOKEN = credentials('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')
-    }
-
+    
     tools {
-        maven 'M3'  // Assurez-vous d'avoir configurÃ© Maven dans Global Tools
+        maven 'M3'
     }
-
+    
+    environment {
+        // Ces variables seront configurÃ©es dans Jenkins
+        SONAR_HOST_URL = 'http://192.168.33.10:9000'
+        DOCKER_IMAGE = 'wassimfrigui/ci-cd-demo'
+    }
+    
     stages {
-        stage('Clean Workspace') {
+        stage('Checkout') {
             steps {
-                cleanWs()
-                echo 'Workspace cleaned'
+                checkout scm
+                echo 'âœ… Code checked out'
             }
         }
-
-        stage('Git Checkout with Token') {
-            steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    extensions: [],
-                    userRemoteConfigs: [[
-                        url: 'https://github.com/friguiwassim/wassim-frigui.git',
-                        credentialsId: 'github-token'
-                    ]]
-                ])
-                echo 'Code retrieved from Git using token'
-            }
-        }
-
-        stage('Check Project Structure') {
+        
+        stage('Analyze Project') {
             steps {
                 sh '''
-                    echo "=== Project Structure ==="
+                    echo "=== PROJECT ANALYSIS ==="
                     ls -la
+                    echo ""
                     
-                    echo "=== Checking for pom.xml ==="
                     if [ -f "pom.xml" ]; then
-                        echo "Maven project detected"
-                        cat pom.xml | head -20
+                        echo "âœ… Maven project detected"
+                        echo "Java version:"
+                        java -version
+                        echo ""
+                        echo "Maven version:"
+                        mvn --version
                     else
-                        echo "No pom.xml found - not a Maven project"
+                        echo "âš ï¸  No pom.xml found"
+                        echo "This may not be a Java Maven project"
+                    fi
+                    
+                    if [ -f "Dockerfile" ]; then
+                        echo "âœ… Dockerfile detected"
+                    else
+                        echo "âš ï¸  No Dockerfile found"
                     fi
                 '''
             }
         }
-
-        stage('Maven Build (if applicable)') {
+        
+        stage('Maven Build & Test') {
             when {
                 expression { fileExists('pom.xml') }
             }
             steps {
                 sh '''
-                    echo "Running Maven build..."
-                    mvn clean compile test -q
-                    echo "Maven build completed"
+                    echo "=== MAVEN BUILD ==="
+                    mvn clean compile test
+                    echo "âœ… Build completed"
                 '''
             }
         }
-
+        
         stage('SonarQube Analysis') {
             when {
                 expression { fileExists('pom.xml') }
@@ -82,19 +67,16 @@ pipeline {
             steps {
                 withSonarQubeEnv('SonarQube') {
                     sh '''
-                        echo "Starting SonarQube analysis..."
+                        echo "=== SONARQUBE ANALYSIS ==="
                         mvn sonar:sonar \
-                            -Dsonar.projectKey=wassim-frigui-devops \
-                            -Dsonar.projectName="Wassim Frigui DevOps Project" \
-                            -Dsonar.host.url=${SONAR_HOST_URL} \
-                            -Dsonar.login=${SONAR_TOKEN}
-                        echo "SonarQube analysis submitted"
+                          -Dsonar.projectKey=wassim-frigui-devops \
+                          -Dsonar.projectName="Wassim Frigui DevOps"
                     '''
                 }
             }
         }
-
-        stage('Check SonarQube Quality Gate') {
+        
+        stage('Quality Gate Check') {
             when {
                 expression { fileExists('pom.xml') }
             }
@@ -102,74 +84,73 @@ pipeline {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
+                echo 'âœ… Quality Gate passed'
             }
         }
-
+        
         stage('Docker Build') {
             when {
                 expression { fileExists('Dockerfile') }
             }
             steps {
-                sh '''
-                    echo "Building Docker image..."
-                    docker build -t ${DOCKER_IMAGE}:v${BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
-                    echo "Docker image built successfully"
-                '''
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-wassim',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "=== DOCKER BUILD ==="
+                            docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
+                            echo "âœ… Docker image built"
+                        '''
+                    }
+                }
             }
         }
-
+        
         stage('Docker Push') {
             when {
                 expression { fileExists('Dockerfile') }
             }
             steps {
-                sh '''
-                    echo "Logging into Docker Hub..."
-                    echo "${DOCKER_CREDS_PSW}" | docker login -u "${DOCKER_CREDS_USR}" --password-stdin
-
-                    echo "Pushing images to Docker Hub..."
-                    docker push ${DOCKER_IMAGE}:v${BUILD_NUMBER}
-                    docker push ${DOCKER_IMAGE}:latest
-
-                    echo "Images pushed successfully to Docker Hub"
-                '''
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-wassim',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo "=== DOCKER PUSH ==="
+                            echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
+                            docker push ${DOCKER_IMAGE}:latest
+                            echo "âœ… Images pushed to Docker Hub"
+                        '''
+                    }
+                }
             }
         }
     }
-
+    
     post {
         success {
             echo 'í¾‰ PIPELINE SUCCESSFUL!'
             sh '''
-                echo "========================================="
-                echo "           CI/CD PIPELINE REPORT         "
-                echo "========================================="
-                echo "í³¦ Build Number: #${BUILD_NUMBER}"
-                echo "í°³ Docker Image: ${DOCKER_IMAGE}:v${BUILD_NUMBER}"
-                echo "í´— Docker Hub: https://hub.docker.com/r/wassimfrigui/ci-cd-demo"
-                echo "í³Š SonarQube: ${SONAR_HOST_URL}/dashboard?id=wassim-frigui-devops"
-                echo "í°™ GitHub: https://github.com/friguiwassim/wassim-frigui"
-                echo "íº€ Test Command: docker run -p 8080:80 ${DOCKER_IMAGE}:latest"
-                echo "========================================="
+                echo "========================================"
+                echo "           BUILD REPORT                 "
+                echo "========================================"
+                echo "Build: #${BUILD_NUMBER}"
+                echo "SonarQube: ${SONAR_HOST_URL}"
+                echo "Docker Image: ${DOCKER_IMAGE}:${BUILD_NUMBER}"
+                echo "========================================"
             '''
         }
         failure {
-            echo 'âŒ PIPELINE FAILED - Check logs for details'
-            sh '''
-                echo "========================================="
-                echo "           FAILURE DETAILS               "
-                echo "========================================="
-                echo "Job: ${JOB_NAME}"
-                echo "Build: #${BUILD_NUMBER}"
-                echo "URL: ${BUILD_URL}"
-                echo "========================================="
-            '''
+            echo 'âŒ PIPELINE FAILED'
         }
         always {
-            sh '''
-                echo "Cleaning up Docker images..."
-                docker image prune -f 2>/dev/null || true
-            '''
+            sh 'docker system prune -f 2>/dev/null || true'
             cleanWs()
         }
     }
