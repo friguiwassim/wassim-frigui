@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     tools {
-        maven 'M3'
+        maven 'Maven3'
     }
     
     environment {
@@ -15,7 +15,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo '✅ Code checked out'
+                echo ' Code checked out'
             }
         }
         
@@ -27,21 +27,21 @@ pipeline {
                     echo ""
                     
                     if [ -f "pom.xml" ]; then
-                        echo "✅ Maven project detected"
+                        echo " Maven project detected"
                         echo "Java version:"
                         java -version
                         echo ""
                         echo "Maven version:"
                         mvn --version
                     else
-                        echo "⚠️  No pom.xml found"
+                        echo "  No pom.xml found"
                         echo "This may not be a Java Maven project"
                     fi
                     
                     if [ -f "Dockerfile" ]; then
-                        echo "✅ Dockerfile detected"
+                        echo " Dockerfile detected"
                     else
-                        echo "⚠️  No Dockerfile found"
+                        echo "  No Dockerfile found"
                     fi
                 '''
             }
@@ -55,7 +55,7 @@ pipeline {
                 sh '''
                     echo "=== MAVEN BUILD ==="
                     mvn clean compile test
-                    echo "✅ Build completed"
+                    echo " Build completed"
                 '''
             }
         }
@@ -84,7 +84,7 @@ pipeline {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
-                echo '✅ Quality Gate passed'
+                echo ' Quality Gate passed'
             }
         }
         
@@ -102,7 +102,7 @@ pipeline {
                         sh '''
                             echo "=== DOCKER BUILD ==="
                             docker build -t ${DOCKER_IMAGE}:${BUILD_NUMBER} -t ${DOCKER_IMAGE}:latest .
-                            echo "✅ Docker image built"
+                            echo " Docker image built"
                         '''
                     }
                 }
@@ -125,7 +125,7 @@ pipeline {
                             echo "${DOCKER_PASS}" | docker login -u "${DOCKER_USER}" --password-stdin
                             docker push ${DOCKER_IMAGE}:${BUILD_NUMBER}
                             docker push ${DOCKER_IMAGE}:latest
-                            echo "✅ Images pushed to Docker Hub"
+                            echo " Images pushed to Docker Hub"
                         '''
                     }
                 }
@@ -135,7 +135,7 @@ pipeline {
     
     post {
         success {
-            echo '��� PIPELINE SUCCESSFUL!'
+            echo ' PIPELINE SUCCESSFUL!'
             sh '''
                 echo "========================================"
                 echo "           BUILD REPORT                 "
@@ -147,7 +147,7 @@ pipeline {
             '''
         }
         failure {
-            echo '❌ PIPELINE FAILED'
+            echo ' PIPELINE FAILED'
         }
         always {
             sh 'docker system prune -f 2>/dev/null || true'
